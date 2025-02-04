@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование записи</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        form { max-width: 600px; }
+        label { display: block; margin-bottom: 5px; }
+        input, textarea, select { width: 100%; padding: 8px; margin-bottom: 10px; }
+        button { padding: 10px 15px; background-color: #007BFF; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        .multi-select { height: 100px; }
+    </style>
+</head>
+<body>
+<h1>Редактирование записи</h1>
+<form id="editForm">
+    <input type="hidden" id="id" name="id">
+    <label for="date">Дата:</label>
+    <input type="date" id="date" name="date" required>
+
+    <label for="location">Место:</label>
+    <input type="text" id="location" name="location" required>
+
+    <label for="coordinates">Координаты:</label>
+    <input type="text" id="coordinates" name="coordinates">
+
+    <label for="comment">Комментарий:</label>
+    <textarea id="comment" name="comment"></textarea>
+
+    <label for="fishing_methods">Способы ловли:</label>
+    <select id="fishing_methods" name="fishing_methods" class="multi-select" multiple size="5"></select>
+
+    <label for="caught_fish">Пойманная рыба:</label>
+    <div id="caughtFishContainer">
+        <!-- Динамически добавляемые поля -->
+    </div>
+    <button type="button" onclick="addCaughtFishField()">Добавить рыбу</button>
+
+    <label for="trophy_species">Главный трофей (вид):</label>
+    <select id="trophy_species" name="trophy_species">
+        <option value="">Выберите вид рыбы</option>
+    </select>
+
+    <label for="trophy_weight">Вес трофея (кг):</label>
+    <input type="number" id="trophy_weight" name="trophy_weight" step="0.01">
+
+    <label for="trophy_catch_method">Способ поимки трофея:</label>
+    <select id="trophy_catch_method" name="trophy_catch_method">
+        <!-- Способы ловли загружаются динамически -->
+    </select>
+
+    <label for="trophy_bait">Приманка:</label>
+    <input type="text" id="trophy_bait" name="trophy_bait">
+
+    <label for="trophy_bait_details">Описание приманки:</label>
+    <textarea id="trophy_bait_details" name="trophy_bait_details"></textarea>
+
+    <label for="trophy_photo_url">Фото трофея:</label>
+    <input type="url" id="trophy_photo_url" name="trophy_photo_url">
+
+    <label for="trophy_lure_photo_url">Фото приманки:</label>
+    <input type="url" id="trophy_lure_photo_url" name="trophy_lure_photo_url">
+
+    <button type="submit">Сохранить</button>
+</form>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+
+    // Загрузка данных о записи
+    async function loadFishingRecord() {
+        const response = await fetch(`http://localhost:8080/api/fishing-data/${id}`);
+        const record = await response.json();
+
+        // Заполнение полей данными из записи
+        document.getElementById('id').value = record.id;
+        document.getElementById('date').value = record.date;
+        document.getElementById('location').value = record.location;
+        document.getElementById('coordinates').value = record.coordinates;
+        document.getElementById('comment').value = record.comment;
+
+        // Заполнение способов ловли
+        const fishingMethodsSelect = document.getElementById('fishing_methods');
+        record.fishing_methods.forEach(method => {
+            const option = Array.from(fishingMethodsSelect.options).find(opt => opt.value === method);
+            if (option) {
+                option.selected = true;
+            }
+        });
+
+        // Заполнение пойманной рыбы
+        const caughtFishContainer = document.getElementById('caughtFishContainer');
+        caughtFishContainer.innerHTML = ''; // Очистка контейнера
+        if (record.caught_fish && record.caught_fish.length > 0) {
+            record.caught_fish.forEach(fish => {
+                addCaughtFishField(fish.species, fish.weight);
+            });
+        }
+
+        // Заполнение данных о трофее
+        if (record.trophy_fish) {
+            document.getElementById('trophy_species').value = record.trophy_fish.species || '';
+            document.getElementById('trophy_weight').value = record.trophy_fish.weight || '';
+            document.getElementById('trophy_catch_method').value = record.trophy_fish.catch_method || '';
+            document.getElementById('trophy_bait').value = record.trophy_fish.bait || '';
+            document.getElementById('trophy_bait_details').value = record.trophy_fish.bait_details || '';
+            document.getElementById('trophy_photo_url').value = record.trophy_fish.photo_url || '';
+            document.getElementById('trophy_lure_photo_url').value = record.trophy_fish.lure_photo_url || '';
+        }
+    }
+
+    // Загрузка способов ловли и видов рыб
+    async function loadFishingMethodsAndFishSpecies() {
+        const [methodsResponse, speciesResponse] = await Promise.all([
+            fetch('http://localhost:8080/api/fishing-methods'),
+            fetch('http://localhost:8080/api/fish-species')
+        ]);
+
+        const methods = await methodsResponse.json();
+        const species = await speciesResponse.json();
+
+        // Заполнение способов ловли
+        const fishingMethodsSelect = document.getElementById('fishing_methods');
+        const trophyCatchMethodSelect = document.getElementById('trophy_catch_method');
+        methods.forEach(method => {
+            const option = document.createElement('option');
+            option.value = method;
+            option.text = method;
+
+            fishingMethodsSelect.add(option);
+            trophyCatchMethodSelect.add(option.cloneNode(true)); // Клонируем для второго селекта
+        });
+
+        // Заполнение видов рыб для трофея
+        const trophySpeciesSelect = document.getElementById('trophy_species');
+        species.forEach(specie => {
+            const option = document.createElement('option');
+            option.value = specie;
+            option.text = specie;
+            trophySpeciesSelect.add(option);
+        });
+    }
+
+    // Добавление поля для пойманной рыбы
+    function addCaughtFishField(species = '', weight = '') {
+        const container = document.getElementById('caughtFishContainer');
+        const div = document.createElement('div');
+        div.innerHTML = `
+                <label>Вид рыбы:</label>
+                <select name="caught_fish_species[]" class="fish-species-select">
+                    <option value="">Выберите вид рыбы</option>
+                </select>
+                <label>Вес (кг):</label>
+                <input type="number" name="caught_fish_weight[]" value="${weight}" step="0.01">
+                <button type="button" onclick="this.parentElement.remove()">Удалить</button>
+                <hr>
+            `;
+        container.appendChild(div);
+
+        // Заполнение выпадающего списка видов рыб
+        const speciesSelect = div.querySelector('.fish-species-select');
+        fetch('http://localhost:8080/api/fish-species')
+            .then(response => response.json())
+            .then(speciesList => {
+                speciesList.forEach(specie => {
+                    const option = document.createElement('option');
+                    option.value = specie;
+                    option.text = specie;
+                    speciesSelect.add(option);
+                });
+                speciesSelect.value = species; // Установка значения
+            });
+    }
+
+    // Сворачивание списка после выбора
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('select').forEach(select => {
+            select.addEventListener('change', () => {
+                select.blur(); // Принудительно снимаем фокус
+            });
+        });
+    });
+
+    // Отправка формы
+    document.getElementById('editForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const id = document.getElementById('id').value;
+        const date = document.getElementById('date').value;
+        const location = document.getElementById('location').value;
+        const coordinates = document.getElementById('coordinates').value;
+        const comment = document.getElementById('comment').value;
+        const fishingMethods = Array.from(document.getElementById('fishing_methods').selectedOptions).map(option => option.value);
+
+        // Сбор данных о пойманной рыбе
+        const caughtFishSpeciesSelects = document.getElementsByName('caught_fish_species[]');
+        const caughtFishWeightInputs = document.getElementsByName('caught_fish_weight[]');
+        const caughtFish = [];
+        for (let i = 0; i < caughtFishSpeciesSelects.length; i++) {
+            const species = caughtFishSpeciesSelects[i].value;
+            const weight = parseFloat(caughtFishWeightInputs[i].value);
+            if (species && !isNaN(weight)) {
+                caughtFish.push({ species, weight });
+            }
+        }
+
+        // Сбор данных о трофее
+        const trophySpecies = document.getElementById('trophy_species').value;
+        const trophyWeight = parseFloat(document.getElementById('trophy_weight').value);
+        const trophyCatchMethod = document.getElementById('trophy_catch_method').value;
+        const trophyBait = document.getElementById('trophy_bait').value;
+        const trophyBaitDetails = document.getElementById('trophy_bait_details').value;
+        const trophyPhotoURL = document.getElementById('trophy_photo_url').value;
+        const trophyLurePhotoURL = document.getElementById('trophy_lure_photo_url').value;
+
+        const trophyFish = {};
+        if (trophySpecies) {
+            trophyFish.species = trophySpecies;
+            trophyFish.weight = trophyWeight || null;
+            trophyFish.catch_method = trophyCatchMethod || null;
+            trophyFish.bait = trophyBait || null;
+            trophyFish.bait_details = trophyBaitDetails || null;
+            trophyFish.photo_url = trophyPhotoURL || null;
+            trophyFish.lure_photo_url = trophyLurePhotoURL || null;
+        }
+
+        const response = await fetch(`http://localhost:8080/api/fishing-data/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "date": date,
+                "location": location,
+                "coordinates": coordinates,
+                "comment": comment,
+                "fishing_methods": fishingMethods,
+                "caught_fish": caughtFish,
+                "trophy_fish": trophyFish
+            })
+        });
+
+        if (response.ok) {
+            alert('Запись успешно обновлена!');
+            window.location.href = '/list'; // Вернуться к списку
+        } else {
+            alert('Ошибка при обновлении записи.');
+        }
+    });
+
+    // Инициализация страницы
+    window.onload = async function() {
+        await loadFishingMethodsAndFishSpecies();
+        await loadFishingRecord();
+    };
+</script>
+</body>
+</html>

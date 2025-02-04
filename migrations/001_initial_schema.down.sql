@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS fishing_data;
+DROP TABLE IF EXISTS fishing_methods;
+DROP TABLE IF EXISTS fish_species;
+DROP TABLE IF EXISTS baits;

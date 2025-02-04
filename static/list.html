@@ -1,0 +1,56 @@
+<script>
+    async function loadFishingData() {
+        const response = await fetch('http://localhost:8080/api/fishing-data/all');
+        const data = await response.json();
+
+        const tbody = document.querySelector('#fishingTable tbody');
+        tbody.innerHTML = ''; // Очистка таблицы
+
+        data.forEach(item => {
+            const row = document.createElement('tr');
+
+            const dateCell = document.createElement('td');
+            dateCell.textContent = item.date;
+
+            const locationCell = document.createElement('td');
+            locationCell.textContent = item.location;
+
+            const fishCell = document.createElement('td');
+            if (item.caught_fish && item.caught_fish.length > 0) {
+                fishCell.textContent = item.caught_fish.map(fish => `${fish.species} (${fish.weight} кг)`).join(', ');
+            } else {
+                fishCell.textContent = 'Нет данных';
+            }
+
+            const trophyCell = document.createElement('td');
+            if (item.trophy_fish) {
+                trophyCell.innerHTML = `
+                    Вид: ${item.trophy_fish.species}<br>
+                    Вес: ${item.trophy_fish.weight} кг<br>
+                    Способ ловли: ${item.trophy_fish.catch_method || 'Не указан'}<br>
+                    Приманка: ${item.trophy_fish.bait || 'Не указана'}
+                `;
+            } else {
+                trophyCell.textContent = 'Нет трофея';
+            }
+
+            const actionsCell = document.createElement('td');
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Редактировать';
+            editButton.onclick = () => editFishingRecord(item.id);
+            actionsCell.appendChild(editButton);
+
+            row.appendChild(dateCell);
+            row.appendChild(locationCell);
+            row.appendChild(fishCell);
+            row.appendChild(trophyCell);
+            row.appendChild(actionsCell);
+
+            tbody.appendChild(row);
+        });
+    }
+
+    window.onload = function() {
+        loadFishingData();
+    };
+</script>
